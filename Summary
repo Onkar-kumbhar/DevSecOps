@@ -1,0 +1,5 @@
+🔐 Local DevSecOps Setup – Short Description
+
+To replicate a DevSecOps pipeline locally, begin by downloading the project repository containing all necessary configurations. Use Docker Compose to start essential tools like SonarQube, Trivy, and OWASP ZAP in isolated containers.
+Set up a local CI/CD environment using Jenkins, GitLab, or GitHub Actions simulators to automate build, test, and security steps. Security analysis is performed through static and container vulnerability scans, code quality checks, and web application security testing.
+Once the application is built and deployed locally using Docker or Kubernetes, it can be tested and scanned within the local environment. Shift-left security practices ensure that testing and scanning are integrated early in the development process, improving overall software security before deployment
