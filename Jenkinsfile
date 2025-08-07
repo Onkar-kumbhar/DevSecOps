@@ -50,7 +50,8 @@ pipeline {
 
         stage('Run ZAP Scan') {
             steps {
-                sh '''
+                sh 'docker run --rm --user root --network host -v $PWD:/zap/wrk -v $PWD/reports:/zap/reports owasp/zap2docker-stable zap-baseline.py -t http://localhost:$APP_PORT || true'
+
                     mkdir -p reports
                     docker run --rm --user root --network host \
                     -v "$PWD:/zap/wrk" \
