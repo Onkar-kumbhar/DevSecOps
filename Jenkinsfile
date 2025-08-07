@@ -43,14 +43,17 @@ pipeline {
         sh '''
             mkdir -p reports
             docker run --rm \
-                -v $PWD:/zap/wrk \
-                -v $PWD/reports:/zap/reports \
-                -t owasp/zap2docker-stable zap-baseline.py \
-                -t http://host.docker.internal:3000 \
+                --user root \\
+                --network host \\
+                -v $PWD:/zap/wrk \\
+                -v $PWD/reports:/zap/reports \\
+                -t owasp/zap2docker-stable zap-baseline.py \\
+                -t http://localhost:3000 \\
                 -r zap_report.html
         '''
     }
 }
+
 
 
         stage('Display ZAP Report Summary') {
