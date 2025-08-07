@@ -1,10 +1,6 @@
 pipeline {
     agent any
 
-    environment {
-        APP_PORT = "3000"
-    }
-
     stages {
         stage('Checkout Code') {
             steps {
@@ -15,50 +11,50 @@ pipeline {
         stage('Run Semgrep') {
             steps {
                 sh '''
-                mkdir -p reports
-                docker run --rm -v $(pwd)/app:/src returntocorp/semgrep semgrep --config "p/owasp-top-ten" --json > reports/semgrep_report.json
-                docker run --rm -v $(pwd)/app:/src returntocorp/semgrep semgrep --config "p/owasp-top-ten" --text > reports/semgrep_report.txt
-                '''
-            }
-        }
-
-        stage('Start Application') {
-            steps {
-                sh '''
-                docker-compose down || true
-                docker-compose up -d
-                sleep 10  # wait for app to start
-                '''
-            }
-        }
-
-        stage('Run ZAP Scan') {
-            steps {
-                sh '''
-                mkdir -p reports
-                docker run --rm --user root --network host \
-                  -v "$PWD:/zap/wrk" -v "$PWD/reports:/zap/reports" \
-                  owasp/zap2docker-stable zap-baseline.py -t http://localhost:$APP_PORT > reports/zap_report.txt
+                    mkdir -p reports
+                    docker run --rm \
+                        -v "$PWD/app:/src" \
+                        returntocorp/semgrep \
+                        semgrep --config=auto \
+                                --output=/src/../reports/semgrep_report.txt
                 '''
             }
         }
 
         stage('Display Semgrep Report') {
             steps {
-                sh 'cat reports/semgrep_report.txt || echo "Semgrep report not found."'
+                sh 'cat reports/semgrep_report.txt || echo "No report found."'
+            }
+        }
+
+        stage('Start Application') {
+            steps {
+                dir('app') {
+                    sh '''
+                        nohup python3 -m http.server 3000 > /dev/null 2>&1 &
+                        sleep 5
+                    '''
+                }
+            }
+        }
+
+        stage('Run ZAP Scan') {
+            steps {
+                sh '''
+                    mkdir -p reports
+                    docker run --rm \
+                        -v $PWD/reports:/zap/reports \
+                        -t owasp/zap2docker-stable zap-baseline.py \
+                        -t http://host.docker.internal:3000 \
+                        -r zap_report.html
+                '''
             }
         }
 
         stage('Display ZAP Report Summary') {
             steps {
-                sh 'cat reports/zap_report.txt || echo "ZAP report not found."'
+                sh 'ls -l reports && echo "ZAP scan completed. Check zap_report.html in the reports directory."'
             }
-        }
-    }
-
-    post {
-        always {
-            echo "Pipeline completed. All reports are available in the 'reports' directory."
         }
     }
 }
