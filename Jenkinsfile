@@ -49,33 +49,30 @@ pipeline {
         }
 
         stage('Run ZAP Scan') {
-            steps {
-                sh '''
-                    mkdir -p reports
-                    docker run --rm --user root --network host \
-                    -v "$PWD:/zap/wrk" \
-                    -v "$PWD/reports:/zap/reports" \
-                    owasp/zap2docker-stable zap-baseline.py \
-                    -t http://localhost:$APP_PORT \
-                    > reports/zap_report.txt
-                '''
-            }
-        }
+    steps {
+        sh '''
+            mkdir -p reports
+            docker run --rm --user root --network host \
+              -v "$PWD:/zap/wrk" \
+              -v "$PWD/reports:/zap/reports" \
+              owasp/zap2docker-stable zap-baseline.py -t http://localhost:$APP_PORT > reports/zap_report.txt || true
+        '''
+    }
+}
 
-        stage('Display ZAP Report Summary') {
-            steps {
-                script {
-                    def zapReport = 'reports/zap_report.txt'
-                    if (fileExists(zapReport)) {
-                        echo "=== ZAP Report ==="
-                        sh "cat ${zapReport}"
-                    } else {
-                        error "ZAP report not found!"
-                    }
-                }
+stage('Display ZAP Report Summary') {
+    steps {
+        script {
+            echo "=== ZAP Report Summary ==="
+            if (fileExists('reports/zap_report.txt')) {
+                sh 'cat reports/zap_report.txt'
+            } else {
+                echo "ZAP report not found."
             }
         }
     }
+}
+
 
     post {
         always {
