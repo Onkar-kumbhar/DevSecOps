@@ -1,7 +1,7 @@
 pipeline {
     agent any
 
-       stages {
+    stages {
         stage('Checkout Code') {
             steps {
                 git branch: 'main', url: 'https://github.com/Onkar-kumbhar/DevSecOps.git'
@@ -9,25 +9,51 @@ pipeline {
         }
 
         stage('Run Semgrep') {
-    steps {
-        sh '''
-            mkdir -p reports
-            docker run --rm \
-                -v "$PWD/app:/src" \
-                returntocorp/semgrep \
-                semgrep --config=auto \
-                        --output=/src/../reports/semgrep_report.txt
-        '''
-    }
-}
-
-
-
-
+            steps {
+                sh '''
+                    mkdir -p reports
+                    docker run --rm \
+                        -v "$PWD/app:/src" \
+                        returntocorp/semgrep \
+                        semgrep --config=auto \
+                                --output=/src/../reports/semgrep_report.txt
+                '''
+            }
+        }
 
         stage('Display Semgrep Report') {
             steps {
                 sh 'cat reports/semgrep_report.txt || echo "No report found."'
+            }
+        }
+
+        stage('Start Application') {
+            steps {
+                dir('app') {
+                    sh '''
+                        nohup python3 -m http.server 3000 > /dev/null 2>&1 &
+                        sleep 5
+                    '''
+                }
+            }
+        }
+
+        stage('Run ZAP Scan') {
+            steps {
+                sh '''
+                    mkdir -p reports
+                    docker run --rm \
+                        -v $PWD/reports:/zap/reports \
+                        -t owasp/zap2docker-stable zap-baseline.py \
+                        -t http://host.docker.internal:3000 \
+                        -r zap_report.html
+                '''
+            }
+        }
+
+        stage('Display ZAP Report Summary') {
+            steps {
+                sh 'ls -l reports && echo "ZAP scan completed. Check zap_report.html in the reports directory."'
             }
         }
     }
