@@ -1,14 +1,12 @@
 pipeline {
     agent any
-
     environment {
         APP_PORT = '3000'
     }
-
     stages {
         stage('Checkout Code') {
             steps {
-                git 'https://github.com/Onkar-kumbhar/DevSecOps.git'
+                git url: 'https://github.com/Onkar-kumbhar/DevSecOps.git', branch: 'main'
             }
         }
 
@@ -16,32 +14,22 @@ pipeline {
             steps {
                 sh '''
                     mkdir -p reports
-                    docker run --rm -v "$PWD/app:/src" returntocorp/semgrep semgrep --config=auto --output=/src/../reports/semgrep_report.txt
+                    docker run --rm -v "$PWD:/src" returntocorp/semgrep semgrep scan --config=auto --json > reports/semgrep_report.json
+                    cat reports/semgrep_report.json > reports/semgrep_report.txt
                 '''
             }
         }
 
         stage('Display Semgrep Report') {
             steps {
-                script {
-                    if (fileExists('reports/semgrep_report.txt')) {
-                        echo "=== Semgrep Report ==="
-                        sh 'cat reports/semgrep_report.txt'
-                    } else {
-                        echo "No Semgrep report found."
-                    }
-                }
+                sh 'cat reports/semgrep_report.txt'
             }
         }
 
         stage('Start Application') {
             steps {
-                dir('app') {
-                    sh '''
-                        nohup python3 -m http.server $APP_PORT &
-                        sleep 5
-                    '''
-                }
+                sh 'docker-compose up -d'
+                sleep(time: 10, unit: "SECONDS")  // Wait for app to start
             }
         }
 
@@ -50,25 +38,15 @@ pipeline {
                 sh '''
                     mkdir -p reports
                     docker run --rm --user root --network host \
-                        -v "$PWD:/zap/wrk" \
-                        -v "$PWD/reports:/zap/reports" \
-                        owasp/zap2docker-stable zap-baseline.py \
-                        -t http://localhost:$APP_PORT \
-                        > reports/zap_report.txt
+                        -v "$PWD:/zap/wrk" -v "$PWD/reports:/zap/reports" \
+                        owasp/zap2docker-stable zap-baseline.py -t http://localhost:$APP_PORT > reports/zap_report.txt
                 '''
             }
         }
 
         stage('Display ZAP Report Summary') {
             steps {
-                script {
-                    if (fileExists('reports/zap_report.txt')) {
-                        echo "=== ZAP Report ==="
-                        sh 'cat reports/zap_report.txt'
-                    } else {
-                        echo "No ZAP report found."
-                    }
-                }
+                sh 'cat reports/zap_report.txt'
             }
         }
     }
