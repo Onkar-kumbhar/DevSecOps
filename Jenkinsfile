@@ -1,10 +1,15 @@
 pipeline {
     agent any
 
+    environment {
+        APP_PORT = '3000'
+    }
+
     stages {
+
         stage('Checkout Code') {
             steps {
-                git branch: 'main', url: 'https://github.com/Onkar-kumbhar/DevSecOps.git'
+                git url: 'https://github.com/Onkar-kumbhar/DevSecOps.git', branch: 'main'
             }
         }
 
@@ -12,18 +17,23 @@ pipeline {
             steps {
                 sh '''
                     mkdir -p reports
-                    docker run --rm \
-                        -v "$PWD/app:/src" \
-                        returntocorp/semgrep \
-                        semgrep --config=auto \
-                                --output=/src/../reports/semgrep_report.txt
+                    docker run --rm -v "$PWD/app:/src" returntocorp/semgrep \
+                    semgrep --config=auto --output=/src/../reports/semgrep_report.txt
                 '''
             }
         }
 
         stage('Display Semgrep Report') {
             steps {
-                sh 'cat reports/semgrep_report.txt || echo "No report found."'
+                script {
+                    def semgrepReport = 'reports/semgrep_report.txt'
+                    if (fileExists(semgrepReport)) {
+                        echo "=== Semgrep Report ==="
+                        sh "cat ${semgrepReport}"
+                    } else {
+                        error "Semgrep report not found!"
+                    }
+                }
             }
         }
 
@@ -31,30 +41,45 @@ pipeline {
             steps {
                 dir('app') {
                     sh '''
-                        nohup python3 -m http.server 3000 > /dev/null 2>&1 &
+                        nohup python3 -m http.server $APP_PORT > /dev/null 2>&1 &
                         sleep 5
                     '''
                 }
             }
         }
 
-       stage('Run ZAP Scan') {
-  steps {
-    sh '''
-      mkdir -p reports
-      docker run --rm --user root --network host \
-        -v "$PWD:/zap/wrk" \
-        -v "$PWD/reports:/zap/reports" \
-        owasp/zap2docker-stable zap-baseline.py \
-        -t http://localhost:3000 > reports/zap_report.txt
-    '''
-  }
-}
+        stage('Run ZAP Scan') {
+            steps {
+                sh '''
+                    mkdir -p reports
+                    docker run --rm --user root --network host \
+                    -v "$PWD:/zap/wrk" \
+                    -v "$PWD/reports:/zap/reports" \
+                    owasp/zap2docker-stable zap-baseline.py \
+                    -t http://localhost:$APP_PORT \
+                    > reports/zap_report.txt
+                '''
+            }
+        }
 
         stage('Display ZAP Report Summary') {
             steps {
-                sh 'ls -l reports && echo "ZAP scan completed. Check zap_report.html in the reports directory."'
+                script {
+                    def zapReport = 'reports/zap_report.txt'
+                    if (fileExists(zapReport)) {
+                        echo "=== ZAP Report ==="
+                        sh "cat ${zapReport}"
+                    } else {
+                        error "ZAP report not found!"
+                    }
+                }
             }
+        }
+    }
+
+    post {
+        always {
+            echo "Pipeline completed. All reports are available in the 'reports' directory."
         }
     }
 }
