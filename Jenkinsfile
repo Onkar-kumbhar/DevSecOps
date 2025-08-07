@@ -1,10 +1,14 @@
 pipeline {
     agent any
 
+    environment {
+        REPORTS_DIR = "${WORKSPACE}/reports"
+    }
+
     stages {
         stage('Checkout Code') {
             steps {
-                git branch: 'main', url: 'https://github.com/Onkar-kumbhar/DevSecOps.git'
+                git 'https://github.com/Onkar-kumbhar/DevSecOps.git'
             }
         }
 
@@ -12,18 +16,14 @@ pipeline {
             steps {
                 sh '''
                     mkdir -p reports
-                    docker run --rm \
-                        -v "$PWD/app:/src" \
-                        returntocorp/semgrep \
-                        semgrep --config=auto \
-                                --output=/src/../reports/semgrep_report.txt
+                    docker run --rm -v "$PWD/app:/src" returntocorp/semgrep semgrep --config=auto --output=/src/../reports/semgrep_report.txt
                 '''
             }
         }
 
         stage('Display Semgrep Report') {
             steps {
-                sh 'cat reports/semgrep_report.txt || echo "No report found."'
+                sh 'cat reports/semgrep_report.txt || echo "No Semgrep report found."'
             }
         }
 
@@ -31,7 +31,7 @@ pipeline {
             steps {
                 dir('app') {
                     sh '''
-                        nohup python3 -m http.server 3000 > /dev/null 2>&1 &
+                        nohup python3 -m http.server 3000 &
                         sleep 5
                     '''
                 }
@@ -41,19 +41,19 @@ pipeline {
         stage('Run ZAP Scan') {
             steps {
                 sh '''
-                    mkdir -p reports
+                    mkdir -p reports zap-wrk
                     docker run --rm \
-                        -v $PWD/reports:/zap/reports \
-                        -t owasp/zap2docker-stable zap-baseline.py \
-                        -t http://host.docker.internal:3000 \
-                        -r zap_report.html
+                        -v "$PWD/reports:/zap/reports" \
+                        -v "$PWD/zap-wrk:/zap/wrk" \
+                        -t owasp/zap2docker-stable \
+                        zap-baseline.py -t http://host.docker.internal:3000 -r zap_report.html
                 '''
             }
         }
 
         stage('Display ZAP Report Summary') {
             steps {
-                sh 'ls -l reports && echo "ZAP scan completed. Check zap_report.html in the reports directory."'
+                sh 'cat reports/zap_report.html || echo "ZAP report not found."'
             }
         }
     }
