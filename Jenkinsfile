@@ -1,77 +1,27 @@
 pipeline {
     agent any
 
-    environment {
-        APP_DIR = 'app'
-        REPORT_DIR = 'reports'
-    }
-
     stages {
-
-        stage('Checkout Code') {
+        stage('Clone Repo') {
             steps {
-                git 'https://github.com/Onkar-kumbhar/DevSecOps.git'
+                git credentialsId: 'github-ssh-key', url: 'git@github.com:Onkar-kumbhar/exam-3025.git', branch: 'main'
             }
         }
 
         stage('Run Semgrep') {
             steps {
                 sh '''
-                    mkdir -p ${REPORT_DIR}
-                    docker run --rm -v "$PWD/${APP_DIR}:/src" returntocorp/semgrep semgrep --config=auto --output=/src/../${REPORT_DIR}/semgrep_report.txt
+                mkdir -p reports
+
+                # Run Semgrep and always overwrite the report
+                docker run --rm \
+                    -u 0:0 \
+                    -e HOME=/tmp \
+                    -v $(pwd):/src \
+                    returntocorp/semgrep \
+                    sh -c "semgrep --config=/src/semgrep/semgrep_rules.yml --output=/src/reports/semgrep_report.txt --force-color"
                 '''
             }
-        }
-
-        stage('Display Semgrep Report') {
-            steps {
-                sh 'cat ${REPORT_DIR}/semgrep_report.txt'
-            }
-        }
-
-        stage('Start Application') {
-            steps {
-                dir("${APP_DIR}") {
-                    sh '''
-                        nohup python3 -m http.server 3000 > /dev/null 2>&1 &
-                        sleep 5
-                    '''
-                }
-            }
-        }
-
-        stage('Run ZAP Scan') {
-            steps {
-                sh '''
-                    mkdir -p ${REPORT_DIR}
-                    docker run --rm --user root --network host \
-                    -v "$PWD:/zap/wrk" \
-                    -v "$PWD/${REPORT_DIR}:/zap/reports" \
-                    owasp/zap2docker-stable zap-baseline.py \
-                    -t http://localhost:3000 \
-                    > ${REPORT_DIR}/zap_report.txt
-                '''
-            }
-        }
-
-        stage('Display ZAP Report Summary') {
-            steps {
-                script {
-                    def zapReport = "${REPORT_DIR}/zap_report.txt"
-                    if (fileExists(zapReport)) {
-                        echo "ZAP Report Summary:"
-                        sh "cat ${zapReport}"
-                    } else {
-                        error "ZAP report not found!"
-                    }
-                }
-            }
-        }
-    }
-
-    post {
-        always {
-            echo 'Pipeline execution completed.'
         }
     }
 }
