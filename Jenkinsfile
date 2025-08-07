@@ -46,16 +46,10 @@ pipeline {
         -v "$PWD:/zap/wrk" \
         -v "$PWD/reports:/zap/reports" \
         owasp/zap2docker-stable zap-baseline.py \
-        -t http://localhost:3000 \
-        -f text \
-        -o /zap/reports/zap_report.txt
+        -t http://localhost:3000 > reports/zap_report.txt
     '''
   }
 }
-
-
-    
- 
 
         stage('Display ZAP Report Summary') {
             steps {
