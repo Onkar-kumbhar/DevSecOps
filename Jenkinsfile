@@ -1,15 +1,14 @@
 pipeline {
     agent any
-
-    environment {
-        APP_PORT = '3000'
+    triggers {
+        // Trigger from GitHub webhook
+        githubPush()
     }
 
     stages {
-
         stage('Checkout Code') {
             steps {
-                git url: 'https://github.com/Onkar-kumbhar/DevSecOps.git', branch: 'main'
+                git branch: 'main', url: 'https://github.com/Onkar-kumbhar/DevSecOps.git'
             }
         }
 
@@ -17,69 +16,58 @@ pipeline {
             steps {
                 sh '''
                     mkdir -p reports
-                    docker run --rm -v "$PWD/app:/src" returntocorp/semgrep \
-                    semgrep --config=auto --output=/src/../reports/semgrep_report.txt
+                    docker run --rm \
+                        -v "$PWD/app:/src" \
+                        -v "$PWD/semgrep/semgrep_rules.yml:/semgrep_rules.yml" \
+                        returntocorp/semgrep \
+                        semgrep --config=/semgrep_rules.yml \
+                                --output=/src/../reports/semgrep_report.txt
                 '''
             }
         }
 
         stage('Display Semgrep Report') {
             steps {
-                script {
-                    def semgrepReport = 'reports/semgrep_report.txt'
-                    if (fileExists(semgrepReport)) {
-                        echo "=== Semgrep Report ==="
-                        sh "cat ${semgrepReport}"
-                    } else {
-                        error "Semgrep report not found!"
-                    }
-                }
+                sh 'cat reports/semgrep_report.txt || echo "No Semgrep report found."'
             }
         }
 
-        stage('Start Application') {
+        stage('Run DAST Scan') {
             steps {
-                dir('app') {
-                    sh '''
-                        nohup python3 -m http.server $APP_PORT > /dev/null 2>&1 &
-                        sleep 5
-                    '''
-                }
+                sh 'chmod +x ./dast.sh'
+                sh './dast.sh'
             }
         }
 
-        stage('Run ZAP Scan') {
+        stage('Generate ZAP Report') {
             steps {
                 sh '''
-                    mkdir -p reports
-                    docker run --rm --user root --network host \
-                    -v "$PWD:/zap/wrk" \
-                    -v "$PWD/reports:/zap/reports" \
-                    owasp/zap2docker-stable zap-baseline.py \
-                    -t http://localhost:$APP_PORT \
-                    > reports/zap_report.txt
+                    mkdir -p zap_report
+                    curl "http://127.0.0.1:8090/OTHER/core/other/htmlreport/?apikey=12345" \
+                         -o "zap_report/zap_report.html"
                 '''
             }
         }
 
-        stage('Display ZAP Report Summary') {
+        stage('Stop ZAP') {
             steps {
-                script {
-                    def zapReport = 'reports/zap_report.txt'
-                    if (fileExists(zapReport)) {
-                        echo "=== ZAP Report ==="
-                        sh "cat ${zapReport}"
-                    } else {
-                        error "ZAP report not found!"
-                    }
-                }
+                sh 'curl "http://127.0.0.1:8090/JSON/core/action/shutdown/?apikey=12345" || true'
             }
         }
     }
 
     post {
         always {
-            echo "Pipeline completed. All reports are available in the 'reports' directory."
+            emailext(
+                subject: "Jenkins Pipeline: ${currentBuild.fullDisplayName} - ${currentBuild.currentResult}",
+                body: """Build Status: ${currentBuild.currentResult}
+                         Project: ${env.JOB_NAME}
+                         Build Number: ${env.BUILD_NUMBER}
+                         See full details: <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>""",
+                to: 'rushiambalkar1@gmail.com',
+                attachmentsPattern: 'reports/semgrep_report.txt,zap_report/zap_report.html'
+            )
         }
     }
 }
+
