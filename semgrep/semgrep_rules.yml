@@ -1,0 +1,48 @@
+rules:
+  - id: detect-eval
+    pattern: eval($X)
+    message: "Avoid using eval(); it's a security risk."
+    severity: ERROR
+    languages: [*]
+
+  - id: detect-exec
+    pattern: exec($X)
+    message: "Avoid using exec(); it's a major security risk."
+    severity: ERROR
+    languages: [*]
+
+  - id: insecure-subprocess
+    pattern: subprocess.$FUNC($ARG, shell=True)
+    message: "Use of subprocess with shell=True can lead to command injection."
+    severity: ERROR
+    languages: [*]
+
+  - id: hardcoded-password
+    pattern: $VAR = "password"
+    message: "Hardcoded passwords are a security risk."
+    severity: WARNING
+    languages: [*]
+
+  - id: unsafe-pickle
+    pattern: pickle.load($X)
+    message: "Avoid using pickle; it can execute arbitrary code if the input is malicious."
+    severity: ERROR
+    languages: [*]
+
+  - id: insecure-http
+    pattern: requests.get("http://$URL")
+    message: "Avoid using plain HTTP; use HTTPS instead for secure communication."
+    severity: WARNING
+    languages: [*]
+
+  - id: hardcoded-aws-key
+    pattern: 'aws_secret_access_key = "$KEY"'
+    message: "Hardcoded AWS secret keys should not be used in code."
+    severity: ERROR
+    languages: [*]
+
+  - id: weak-hash-md5
+    pattern: hashlib.md5($X)
+    message: "MD5 is a weak hash algorithm and should not be used."
+    severity: WARNING
+    languages: [*]
