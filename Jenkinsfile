@@ -26,7 +26,7 @@ pipeline {
             }
         }
 
-        stage('Display Semgrep Report') {
+        stage('Show Semgrep Report') {
             steps {
                 sh 'cat reports/semgrep_report.txt || echo "No Semgrep report found."'
             }
